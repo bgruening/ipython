@@ -1971,7 +1971,7 @@ class InteractiveShell(SingletonConfigurable):
         sys.excepthook themselves.  I guess this is a feature that
         enables them to keep running after exceptions that would
         otherwise kill their mainloop. This is a bother for IPython
-        which excepts to catch all of the program exceptions with a try:
+        which expects to catch all of the program exceptions with a try:
         except: statement.
 
         Normally, IPython sets sys.excepthook to a CrashHandler instance, so if
@@ -2521,6 +2521,23 @@ class InteractiveShell(SingletonConfigurable):
           Command to execute.
         """
         cmd = self.var_expand(cmd, depth=1)
+        # warn if there is an IPython magic alternative.
+        main_cmd = cmd.split()[0]
+        has_magic_alternatives = ("pip", "conda", "cd", "ls")
+
+        # had to check if the command was an alias expanded because of `ls`
+        is_alias_expanded = self.alias_manager.is_alias(main_cmd) and (
+            self.alias_manager.retrieve_alias(main_cmd).strip() == cmd.strip()
+        )
+
+        if main_cmd in has_magic_alternatives and not is_alias_expanded:
+            warnings.warn(
+                (
+                    "You executed the system command !{0} which may not work "
+                    "as expected. Try the IPython magic %{0} instead."
+                ).format(main_cmd)
+            )
+
         # protect os.system from UNC paths on Windows, which it can't handle:
         if sys.platform == 'win32':
             from IPython.utils._process_win32 import AvoidUNCPath
@@ -3122,9 +3139,7 @@ class InteractiveShell(SingletonConfigurable):
         _run_async = False
 
         with self.builtin_trap:
-            cell_name = self.compile.cache(
-                cell, self.execution_count, raw_code=raw_cell
-            )
+            cell_name = compiler.cache(cell, self.execution_count, raw_code=raw_cell)
 
             with self.display_trap:
                 # Compile to bytecode
